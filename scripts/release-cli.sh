@@ -80,6 +80,18 @@ fi
 echo "built: $BUILT_BIN"
 file "$BUILT_BIN" || true
 
+# AinkradAppKit is a dynamic library (ABI lockstep: host + plugins share one
+# copy), so the CLI links it via @rpath. The binary already carries an
+# @loader_path rpath, so shipping the dylib as a sibling of the executable is
+# all that's needed — no install_name_tool surgery.
+DYLIB_NAME="libAinkradAppKit.dylib"
+BUILT_DYLIB="$(dirname "$BUILT_BIN")/${DYLIB_NAME}"
+if [[ ! -f "$BUILT_DYLIB" ]]; then
+  echo "error: expected AinkradAppKit dylib at $BUILT_DYLIB" >&2
+  exit 1
+fi
+echo "dylib: $BUILT_DYLIB"
+
 # 2. Package as a zip in dist/.
 DIST_DIR="${REPO_ROOT}/dist"
 mkdir -p "$DIST_DIR"
@@ -90,7 +102,8 @@ rm -f "$ZIP_PATH"
 echo "-- packaging $ZIP_PATH --"
 STAGE_DIR="$(mktemp -d)"
 cp "$BUILT_BIN" "$STAGE_DIR/${BIN_NAME}"
-(cd "$STAGE_DIR" && zip -q "$ZIP_PATH" "$BIN_NAME")
+cp "$BUILT_DYLIB" "$STAGE_DIR/${DYLIB_NAME}"
+(cd "$STAGE_DIR" && zip -q "$ZIP_PATH" "$BIN_NAME" "$DYLIB_NAME")
 rm -rf "$STAGE_DIR"
 
 # 3. Compute sha256 of the zip.
@@ -122,7 +135,10 @@ class Ainkrad < Formula
   license "UNLICENSED"
 
   def install
-    bin.install "ainkrad"
+    # ainkrad links libAinkradAppKit.dylib via @loader_path, so the two must
+    # stay siblings. Install both into libexec and symlink the CLI into bin.
+    libexec.install "ainkrad", "libAinkradAppKit.dylib"
+    bin.install_symlink libexec/"ainkrad"
   end
 
   test do
