@@ -74,6 +74,8 @@ private func makeTempDirectory() -> URL {
     #expect(plist["AinkradIconSymbol"] as? String == "star.fill")
     #expect(plist["AinkradAPIVersion"] as? Int == AinkradAppKit.apiVersion)
     #expect(AinkradAppKit.apiVersion == 7)
+    #expect((plist["AinkradAuthor"] as? String)?.isEmpty == false)
+    #expect((plist["description"] as? String)?.isEmpty == false)
     #expect(plist["NSPrincipalClass"] as? String == "MyWidgetEntryPoint")
     #expect(plist["CFBundleName"] as? String == "MyWidget")
     #expect(plist["CFBundleExecutable"] as? String == "MyWidget")

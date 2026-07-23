@@ -33,7 +33,8 @@ struct ReleasePublisher {
     /// `AinkradIconSymbol`, `apiVersion` ← `AinkradAPIVersion`. `description`
     /// is read from the Info.plist's `description` key when present, else
     /// defaults to `""` — it is a required field on the host's decodable, so
-    /// it must always be present in the JSON.
+    /// it must always be present in the JSON. `author` ← `PluginInfoKey.author`
+    /// (`AinkradAuthor`), an optional field on the host's decodable.
     func package(bundle: URL) throws -> (zip: URL, manifest: URL) {
         let (metadata, infoDictionary) = try inspector.metadata(at: bundle)
 
@@ -47,13 +48,15 @@ struct ReleasePublisher {
         let sha256 = try ReleasePublisher.sha256Hex(of: zipURL)
 
         let description = infoDictionary["description"] as? String ?? ""
+        let author = infoDictionary[PluginInfoKey.author] as? String
         let manifest = PublishedManifest(
             id: metadata.appID,
             name: metadata.displayName,
             icon: metadata.iconSymbol,
             description: description,
             apiVersion: metadata.apiVersion,
-            sha256: sha256
+            sha256: sha256,
+            author: author
         )
 
         let manifestURL = outputDirectory.appendingPathComponent("ainkrad-plugin.json")
@@ -138,7 +141,9 @@ struct ReleasePublisher {
 /// `PluginManifest`). Named distinctly here since this target only ever
 /// WRITES this shape; the four optional fields the host also accepts
 /// (`author`, `longDescription`, `screenshots`, `links`) are omitted, which
-/// is legal since they're all optional there.
+/// is legal since they're all optional there. `author` is now emitted (this
+/// task); the remaining three (`longDescription`, `screenshots`, `links`)
+/// stay omitted.
 private struct PublishedManifest: Codable {
     let id: String
     let name: String
@@ -146,4 +151,5 @@ private struct PublishedManifest: Codable {
     let description: String
     let apiVersion: Int
     let sha256: String
+    let author: String?
 }
