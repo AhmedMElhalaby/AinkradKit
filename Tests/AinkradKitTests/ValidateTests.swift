@@ -96,12 +96,48 @@ private func validInfoDictionary(overrides: [String: Any] = [:], removing: Set<S
 }
 
 @Test func validateWithStoreFlagRunsBaseChecksAndDoesNotThrowOnAValidBundle() throws {
-    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary())
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.author: "Jane Developer",
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
     defer { try? FileManager.default.removeItem(at: bundleURL) }
 
     let command = try Validate.parse([bundleURL.path, "--store"])
     try command.run()
     #expect(command.store)
+}
+
+@Test func storeIssuesOnACompleteBundleReturnsNoIssues() throws {
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.author: "Jane Developer",
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
+    defer { try? FileManager.default.removeItem(at: bundleURL) }
+
+    let issues = try Validate.storeIssues(bundleURL: bundleURL, inspector: BundleInspector())
+    #expect(issues == [])
+}
+
+@Test func storeIssuesOnABundleMissingAuthorReportsMissingAuthor() throws {
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
+    defer { try? FileManager.default.removeItem(at: bundleURL) }
+
+    let issues = try Validate.storeIssues(bundleURL: bundleURL, inspector: BundleInspector())
+    #expect(issues.contains { $0.code == "missing-author" })
+}
+
+@Test func validateWithStoreFlagFailsOnABundleMissingAuthor() throws {
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
+    defer { try? FileManager.default.removeItem(at: bundleURL) }
+
+    let command = try Validate.parse([bundleURL.path, "--store"])
+    #expect(throws: ExitCode(1)) {
+        try command.run()
+    }
 }
 
 @Test func bundleInspectorThrowsAClearErrorWhenInfoPlistIsMissing() throws {

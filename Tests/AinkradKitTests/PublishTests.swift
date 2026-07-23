@@ -60,7 +60,9 @@ private func validInfoDictionary(overrides: [String: Any] = [:], removing: Set<S
 }
 
 @Test func packageProducesAZipAndAManifestThatDecodesIntoTheHostsShape() throws {
-    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary())
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.author: "Jane Developer",
+    ]))
     defer { try? FileManager.default.removeItem(at: bundleURL) }
 
     let publisher = ReleasePublisher()
@@ -82,6 +84,7 @@ private func validInfoDictionary(overrides: [String: Any] = [:], removing: Set<S
     #expect(decoded.icon == "star.fill")
     #expect(decoded.description == "")
     #expect(decoded.apiVersion == AinkradAppKit.apiVersion)
+    #expect(decoded.author == "Jane Developer")
 
     // The manifest's sha256 must match an INDEPENDENTLY computed SHA-256 of
     // the produced zip, not just whatever the writer happened to compute.

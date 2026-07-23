@@ -16,7 +16,7 @@ struct Validate: ParsableCommand {
     @Argument(help: "Path to the built .bundle to validate.")
     var bundlePath: String
 
-    @Flag(help: "Also run App Store submission checks (pending sub-project D).")
+    @Flag(help: "Also run App Store submission checks.")
     var store = false
 
     func run() throws {
@@ -30,10 +30,15 @@ struct Validate: ParsableCommand {
         }
 
         if store {
-            // Sub-project D (StorePolicy) has not landed yet: run the same
-            // base checks above and say so explicitly, rather than inventing
-            // store-only checks here.
-            print("Base checks passed. Store checks pending sub-project D.")
+            let issues = try Validate.storeIssues(bundleURL: bundleURL, inspector: BundleInspector())
+            if issues.isEmpty {
+                print("\(bundlePath) passed App Store submission checks.")
+            } else {
+                for issue in issues {
+                    print("\(issue.code): \(issue.message)")
+                }
+                throw ExitCode(1)
+            }
         } else {
             print("\(bundlePath) is valid.")
         }
@@ -59,6 +64,35 @@ struct Validate: ParsableCommand {
         case .failure(let error):
             throw error
         }
+    }
+
+    /// The store-validation-decision seam: mirrors `check` but runs the
+    /// shared `StorePolicy`, which layers catalog-completeness checks
+    /// (author, description, icon) and zip/sha integrity on top of the same
+    /// base `PluginValidation` check. Kept separate from `run()` so tests
+    /// can assert on the returned issues directly, without process spawning.
+    ///
+    /// There is no published artifact at validate time — the sha-integrity
+    /// check is a transport/publish-time concern this command can't observe
+    /// — so `declaredSHA256` and `computedSHA256` are passed the same value
+    /// to trivially satisfy that check here rather than inventing a fake
+    /// mismatch.
+    static func storeIssues(bundleURL: URL, inspector: BundleInspector) throws -> [StoreIssue] {
+        let (metadata, infoDictionary) = try inspector.metadata(at: bundleURL)
+        let manifest = StoreManifestInput(
+            metadata: metadata,
+            infoDictionary: infoDictionary,
+            author: infoDictionary[PluginInfoKey.author] as? String,
+            description: infoDictionary[PluginInfoKey.description] as? String,
+            iconSymbol: metadata.iconSymbol,
+            declaredSHA256: "",
+            computedSHA256: ""
+        )
+        return StorePolicy.check(
+            manifest: manifest,
+            minSupported: AinkradAppKit.apiVersion,
+            current: AinkradAppKit.apiVersion
+        )
     }
 
     /// Renders a thrown validation-path error to the exact message a
