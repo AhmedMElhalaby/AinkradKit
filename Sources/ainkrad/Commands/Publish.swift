@@ -7,8 +7,13 @@ import Foundation
 /// Release carrying them.
 ///
 /// Refuses to package or release a bundle that fails the SAME base
-/// validation `ainkrad validate` runs (`Validate.check`), so nothing that
-/// would fail at install time ever reaches a release.
+/// validation `ainkrad validate` runs (`Validate.check`), OR the store
+/// completeness checks `ainkrad validate --store` runs (`Validate.storeIssues`),
+/// so nothing that would fail at install time — or fail store review — ever
+/// reaches a release. Enforcing StorePolicy here is what makes the host
+/// installer's `author == nil` grandfather clause safe: a new submission can
+/// no longer reach the catalog author-less, so a nil author on an installed
+/// entry can only mean a genuinely legacy, pre-completeness entry.
 ///
 /// NOT registered as a root subcommand yet (Task 9's job).
 struct Publish: ParsableCommand {
@@ -33,6 +38,15 @@ struct Publish: ParsableCommand {
             try Validate.check(bundleURL: bundleURL, inspector: BundleInspector())
         } catch {
             print("Refusing to publish: \(Validate.message(for: error))")
+            throw ExitCode(1)
+        }
+
+        let storeIssues = try Validate.storeIssues(bundleURL: bundleURL, inspector: BundleInspector())
+        if !storeIssues.isEmpty {
+            print("Refusing to publish:")
+            for issue in storeIssues {
+                print("\(issue.code): \(issue.message)")
+            }
             throw ExitCode(1)
         }
 

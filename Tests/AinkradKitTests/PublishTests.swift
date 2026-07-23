@@ -106,11 +106,39 @@ private func validInfoDictionary(overrides: [String: Any] = [:], removing: Set<S
 }
 
 @Test func publishDryRunPackagesAValidBundleWithoutReleasing() throws {
-    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary())
+    // Must be a STORE-complete bundle (author + description), not just
+    // base-valid: since publish now also enforces `StorePolicy`, a bundle
+    // missing either would be refused before reaching this assertion.
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.author: "Jane Developer",
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
     defer { try? FileManager.default.removeItem(at: bundleURL) }
 
     let command = try Publish.parse([bundleURL.path, "v1.0.0", "--dry-run"])
     // Must not throw: dry-run packages but never shells out to `gh`, so
     // this must succeed fully offline.
     try command.run()
+}
+
+@Test func publishDryRunRefusesABundleMissingAnAuthorWithoutProducingAnyAssets() throws {
+    // Base-valid (has CFBundleExecutable etc.) but missing `AinkradAuthor` —
+    // the exact hole Fix 1 closes: previously this reached `package()` and
+    // would have produced assets; now `Validate.storeIssues` catches it
+    // before any packaging happens (verified directly against the seam
+    // below, mirroring how `publishDryRunRefusesAnInvalidBundleWithoutProducingAnyAssets`
+    // proves the base-validation refusal without a flaky filesystem scan
+    // under parallel test execution).
+    let bundleURL = try makeGoldenBundle(infoDictionary: validInfoDictionary(overrides: [
+        PluginInfoKey.description: "A short description of what this app does.",
+    ]))
+    defer { try? FileManager.default.removeItem(at: bundleURL) }
+
+    let issues = try Validate.storeIssues(bundleURL: bundleURL, inspector: BundleInspector())
+    #expect(issues.map(\.code) == ["missing-author"])
+
+    let command = try Publish.parse([bundleURL.path, "v1.0.0", "--dry-run"])
+    #expect(throws: ExitCode(1)) {
+        try command.run()
+    }
 }
