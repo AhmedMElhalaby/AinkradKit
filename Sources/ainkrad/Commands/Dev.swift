@@ -35,9 +35,21 @@ struct Dev: ParsableCommand {
         try session.run(projectDir: directory)
 
         // `DevSession.run` only performs the initial launch and arms the
-        // watcher; keep the process alive so the watcher's DispatchSource
-        // (scheduled on the main queue) keeps delivering events.
-        RunLoop.current.run()
+        // watcher; park this thread forever so the process stays alive while
+        // the watcher keeps firing.
+        //
+        // Crucially, the keep-alive must NOT depend on the main run loop or
+        // the main dispatch queue. `ainkrad`'s entry point is an async
+        // top-level `main` (see main.swift), so the main thread is owned by
+        // Swift concurrency's main-actor executor — there is no running
+        // `CFRunLoop` draining `DispatchQueue.main`. Both `RunLoop.run()` and
+        // `CFRunLoopRun()` therefore return immediately (no sources), and
+        // `dispatchMain()` traps. The watcher and its debounce run on their
+        // own background queues (see `FileWatcher` and
+        // `DispatchQueueDebounceScheduler`), so all this thread must do is
+        // block: a semaphore that is never signalled parks it cleanly until
+        // the developer Ctrl-Cs.
+        DispatchSemaphore(value: 0).wait()
     }
 
     /// Sub-project C is not built yet on every machine, so this is a real
@@ -123,10 +135,16 @@ private final class DevHostProcessLauncher: DevSessionLaunching {
 private final class DispatchQueueDebounceScheduler: DevSessionScheduler {
     private var pendingWorkItem: DispatchWorkItem?
 
+    /// A dedicated serial queue, never `DispatchQueue.main`: `ainkrad dev`'s
+    /// main thread is owned by Swift concurrency's main-actor executor and
+    /// never drains the main queue (see the keep-alive note in `Dev.run`),
+    /// so work scheduled on `.main` would never fire.
+    private let queue = DispatchQueue(label: "com.ainkrad.dev.debounce")
+
     func debounce(interval: TimeInterval, _ work: @escaping () -> Void) {
         pendingWorkItem?.cancel()
         let workItem = DispatchWorkItem(block: work)
         pendingWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + interval, execute: workItem)
+        queue.asyncAfter(deadline: .now() + interval, execute: workItem)
     }
 }
