@@ -18,6 +18,9 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
                 .product(name: "AinkradAppKit", package: "AinkradAppKit"),
+            ],
+            resources: [
+                .copy("Resources/Template"),
             ]
         ),
         .testTarget(
