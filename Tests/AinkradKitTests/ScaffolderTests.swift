@@ -150,6 +150,32 @@ private func makeTempDirectory() -> URL {
     #expect(plist["NSPrincipalClass"] as? String == "MyAppTwoEntryPoint")
 }
 
+/// Closes the build-artifact footgun: `ainkrad build` drops a derived-data
+/// dir (`.ainkrad-build/`) and `ainkrad publish` a `dist/`-style output into
+/// the generated project, so every scaffolded app must ship a `.gitignore`
+/// covering those (and the template's own `build/`/`.build/` outputs) from
+/// day one.
+@Test func scaffoldsAGitignoreCoveringBuildArtifacts() throws {
+    let destination = makeTempDirectory()
+    defer { try? FileManager.default.removeItem(at: destination) }
+
+    try TemplateScaffolder().scaffold(
+        name: "MyWidget",
+        id: "myapp",
+        displayName: "My Widget",
+        icon: "star.fill",
+        into: destination
+    )
+
+    let gitignoreURL = destination.appendingPathComponent(".gitignore")
+    #expect(FileManager.default.fileExists(atPath: gitignoreURL.path))
+
+    let contents = try String(contentsOf: gitignoreURL, encoding: .utf8)
+    for entry in [".build/", "build/", ".ainkrad-build/", "dist/", "*.bundle.zip"] {
+        #expect(contents.contains(entry), "expected .gitignore to cover \"\(entry)\"")
+    }
+}
+
 @Test func rejectsInvalidAppID() {
     let destination = makeTempDirectory()
     defer { try? FileManager.default.removeItem(at: destination) }

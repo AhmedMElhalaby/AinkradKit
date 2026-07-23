@@ -1,0 +1,6 @@
+.build/
+build/
+.ainkrad-build/
+dist/
+*.bundle.zip
+.DS_Store
