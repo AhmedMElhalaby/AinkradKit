@@ -13,7 +13,7 @@ settings:
 packages:
   AinkradAppKit:
     url: https://github.com/AhmedMElhalaby/AinkradAppKit
-    revision: 982fb593c6388cd51a178952375e02dd9c161877
+    revision: 293f049393a663176cbbdb3870e8194456403d71
 targets:
   TemplatePlugin:
     type: bundle
