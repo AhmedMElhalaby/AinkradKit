@@ -1,0 +1,37 @@
+name: AinkradPluginTemplate
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget: { macOS: "14.0" }
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+packages:
+  AinkradAppKit:
+    url: https://github.com/AhmedMElhalaby/AinkradAppKit
+    revision: 982fb593c6388cd51a178952375e02dd9c161877
+targets:
+  TemplatePlugin:
+    type: bundle
+    platform: macOS
+    sources: [Sources/Plugin]
+    dependencies:
+      # AinkradAppKit is the ONLY shared dependency: dynamic + NOT embedded, so
+      # the host's copy is used at runtime and protocol casts succeed. Any other
+      # runtime dependency must be statically linked (see README).
+      - package: AinkradAppKit
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.plugin.myplugin
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/Plugin/Info.plist
+        MACH_O_TYPE: mh_bundle
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+schemes:
+  TemplatePlugin:
+    build: { targets: { TemplatePlugin: all } }
