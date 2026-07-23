@@ -47,3 +47,37 @@ import Testing
 
     #expect(fireBox.hasFired(), "FileWatcher must fire onChange for a write to a nested file")
 }
+
+/// Regression for the `ainkrad dev` infinite-rebuild loop: the build writes
+/// the regenerated `.xcodeproj` and DerivedData (`.ainkrad-build`) back into
+/// the watched tree, and those writes must never count as a change worth
+/// rebuilding for — otherwise every rebuild triggers the next, forever.
+@Test func buildArtifactAndVCSPathsAreIgnoredButRealEditsAreNot() {
+    // Build / VCS / OS output — must be ignored.
+    #expect(FileWatcher.isBuildArtifact("/proj/.ainkrad-build/Build/Products/Debug/App.bundle/Contents/x"))
+    #expect(FileWatcher.isBuildArtifact("/proj/App.xcodeproj/project.pbxproj"))
+    #expect(FileWatcher.isBuildArtifact("/proj/App.xcworkspace/contents.xcworkspacedata"))
+    #expect(FileWatcher.isBuildArtifact("/proj/.git/index"))
+    #expect(FileWatcher.isBuildArtifact("/proj/.build/debug/App"))
+    #expect(FileWatcher.isBuildArtifact("/proj/DerivedData/App/Build/x"))
+    #expect(FileWatcher.isBuildArtifact("/proj/Sources/Plugin/.DS_Store"))
+
+    // Real developer edits — must NOT be ignored.
+    #expect(!FileWatcher.isBuildArtifact("/proj/Sources/Plugin/PluginApp.swift"))
+    #expect(!FileWatcher.isBuildArtifact("/proj/project.yml"))
+    #expect(!FileWatcher.isBuildArtifact("/proj/Info.plist"))
+    #expect(!FileWatcher.isBuildArtifact("/proj/Assets/icon.png"))
+
+    // A batch of pure build output collapses to "nothing to do"...
+    #expect(FileWatcher.onlyBuildArtifactsChanged([
+        "/proj/App.xcodeproj/project.pbxproj",
+        "/proj/.ainkrad-build/Build/Products/Debug/App.bundle/x",
+    ]))
+    // ...but a batch mixing a real edit with build output still rebuilds.
+    #expect(!FileWatcher.onlyBuildArtifactsChanged([
+        "/proj/.ainkrad-build/Build/x",
+        "/proj/Sources/Plugin/PluginApp.swift",
+    ]))
+    // An empty batch is nothing to do.
+    #expect(FileWatcher.onlyBuildArtifactsChanged([]))
+}
