@@ -76,25 +76,18 @@ struct ReleasePublisher {
             throw ReleasePublisherError(description: "gh not found on PATH.")
         }
 
-        let process = Process()
-        process.executableURL = gh
-        process.arguments = ["release", "create", tag] + assets.map(\.path)
-
-        let stderrPipe = Pipe()
-        process.standardError = stderrPipe
-
+        // Via `ProcessRunner`, not a raw `Pipe`: `gh` streams upload progress on
+        // stderr, and a large enough asset filled the pipe buffer while this
+        // code was still in `waitUntilExit` — a publish that hung forever.
+        let result: ProcessRunner.Result
         do {
-            try process.run()
+            result = try ProcessRunner.run(gh, arguments: ["release", "create", tag] + assets.map(\.path))
         } catch {
             throw ReleasePublisherError(description: "Failed to launch gh release create: \(error)")
         }
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+        guard result.succeeded else {
             throw ReleasePublisherError(
-                description: "gh release create \(tag) failed (exit \(process.terminationStatus)): \(stderr)"
+                description: "gh release create \(tag) failed (exit \(result.exitCode)): \(result.standardError)"
             )
         }
     }
@@ -102,26 +95,20 @@ struct ReleasePublisher {
     /// Runs `/usr/bin/ditto -c -k --keepParent <bundle> <zipURL>`, matching
     /// the template's `release.sh` invocation exactly.
     private static func ditto(bundle: URL, to zipURL: URL) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        process.arguments = ["-c", "-k", "--keepParent", bundle.path, zipURL.path]
-
-        let stderrPipe = Pipe()
-        process.standardError = stderrPipe
-
+        // Same reason as `release` above — `ditto` reports per-file progress on
+        // stderr, so a bundle with enough files deadlocked the old raw-pipe form.
+        let result: ProcessRunner.Result
         do {
-            try process.run()
+            result = try ProcessRunner.run(
+                URL(fileURLWithPath: "/usr/bin/ditto"),
+                arguments: ["-c", "-k", "--keepParent", bundle.path, zipURL.path])
         } catch {
             throw ReleasePublisherError(description: "Failed to launch ditto: \(error)")
         }
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderr = String(data: stderrData, encoding: .utf8) ?? ""
+        guard result.succeeded else {
             throw ReleasePublisherError(
                 description: "ditto \(bundle.path) -> \(zipURL.path) failed " +
-                    "(exit \(process.terminationStatus)): \(stderr)"
+                    "(exit \(result.exitCode)): \(result.standardError)"
             )
         }
     }
