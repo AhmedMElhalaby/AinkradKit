@@ -50,6 +50,28 @@ struct TemplateScaffolder {
         }
 
         let fileManager = FileManager.default
+
+        // Refuse to scaffold over existing work.
+        //
+        // `copyAndSubstitute` writes each template file unconditionally, so
+        // running `ainkrad new` in a directory that already holds a plugin
+        // silently replaced Sources/Plugin/PluginApp.swift, project.yml and
+        // the Makefile with fresh boilerplate — destroying uncommitted work
+        // with no prompt and no diff. A scaffolder must never be destructive.
+        //
+        // Only files the template would actually write are checked: an empty
+        // directory, or one holding unrelated files (a README, a .git), is
+        // still a legitimate target.
+        let existing = try TemplateScaffolder.templateRelativePaths(under: templateURL, fileManager: fileManager)
+            .filter { fileManager.fileExists(atPath: destination.appendingPathComponent($0).path) }
+        guard existing.isEmpty else {
+            throw TemplateScaffolderError(
+                description: "Refusing to overwrite existing files in \(destination.path):\n"
+                    + existing.sorted().map { "  \($0)" }.joined(separator: "\n")
+                    + "\nMove or delete them first, or scaffold into a new directory."
+            )
+        }
+
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
 
         let replacements = TemplateScaffolder.substitutions(
@@ -125,6 +147,23 @@ struct TemplateScaffolder {
         }
 
         return result
+    }
+
+    /// Every file the template would write, as paths relative to the scaffold
+    /// root. Drives the overwrite guard in `scaffold` — see the comment there.
+    static func templateRelativePaths(under source: URL, fileManager: FileManager) throws -> [String] {
+        var out: [String] = []
+        let items = try fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey])
+        for item in items {
+            let isDirectory = (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDirectory {
+                let nested = try templateRelativePaths(under: item, fileManager: fileManager)
+                out.append(contentsOf: nested.map { "\(item.lastPathComponent)/\($0)" })
+            } else {
+                out.append(item.lastPathComponent)
+            }
+        }
+        return out
     }
 
     private static func copyAndSubstitute(

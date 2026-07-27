@@ -63,27 +63,10 @@ struct Environment {
     /// Runs `executable` with `arguments`, returning trimmed stdout on
     /// success (exit code 0) or `nil` on failure/launch error.
     private static func run(_ executable: String, arguments: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-
-        let stdout = Pipe()
-        process.standardOutput = stdout
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-
-            let data = stdout.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty else {
-                return nil
-            }
-            return output
-        } catch {
-            return nil
-        }
+        // `ProcessRunner` rather than raw pipes: this had the same
+        // run/wait/read ordering as every other deadlock in the family. The
+        // probes here are short-output, so it never hung in practice — which is
+        // exactly why it would have been the last one anyone fixed.
+        ProcessRunner.output(executable, arguments: arguments)
     }
 }

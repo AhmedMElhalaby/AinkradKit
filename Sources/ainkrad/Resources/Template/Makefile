@@ -8,4 +8,14 @@ sideload: build
 	mkdir -p "$(DEV_PLUGINS)"
 	rm -rf "$(DEV_PLUGINS)/TemplatePlugin.bundle"
 	cp -R build/Build/Products/Debug/TemplatePlugin.bundle "$(DEV_PLUGINS)/TemplatePlugin.bundle"
-release: ; ./scripts/release.sh $(V)
+# Publishing goes through `ainkrad publish` and nowhere else.
+#
+# This target used to call a bundled release script that assembled its own
+# ainkrad-plugin.json by hand — hardcoding "apiVersion": 1, which the host
+# REJECTS (the supported range starts at the current generation), and omitting
+# "author" entirely. It was a second publish path producing manifests the
+# host's StorePolicy refuses, sitting right beside the validated one, and it
+# was the reason the installer needed an `author == nil` grandfather clause.
+# Deleted. `ainkrad publish` runs the same validation the store does.
+release: releasebuild ; ainkrad publish build/Build/Products/Release/TemplatePlugin.bundle $(V)
+releasebuild: generate ; xcodebuild -scheme TemplatePlugin -configuration Release -derivedDataPath build -destination 'platform=macOS' build

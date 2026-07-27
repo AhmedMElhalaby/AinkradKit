@@ -116,57 +116,30 @@ struct BundleBuilder {
     /// with the child's stderr included verbatim so the real
     /// xcodegen/xcodebuild failure reaches the developer.
     ///
-    /// stdout/stderr are captured via temp files rather than `Pipe`:
-    /// xcodebuild output can be large, and reading two pipes sequentially
-    /// (rather than concurrently) risks a classic deadlock if the child
-    /// fills one pipe's buffer while we're still draining the other.
+    /// Delegates to `ProcessRunner`, which is where this file's temp-file
+    /// capture strategy now lives — it was the one call site in the family that
+    /// got the pipe-deadlock question right, so it became the shared
+    /// implementation rather than staying a local lesson.
     @discardableResult
     private static func run(_ executable: URL, arguments: [String], currentDirectory: URL) throws -> String {
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = arguments
-        process.currentDirectoryURL = currentDirectory
-
-        var childEnvironment = ProcessInfo.processInfo.environment
-        childEnvironment["DEVELOPER_DIR"] = BundleBuilder.developerDirectoryPath
-        process.environment = childEnvironment
-
-        let fileManager = FileManager.default
-        let stdoutURL = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let stderrURL = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        fileManager.createFile(atPath: stdoutURL.path, contents: nil)
-        fileManager.createFile(atPath: stderrURL.path, contents: nil)
-        defer {
-            try? fileManager.removeItem(at: stdoutURL)
-            try? fileManager.removeItem(at: stderrURL)
-        }
-
-        let stdoutHandle = try FileHandle(forWritingTo: stdoutURL)
-        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
-        process.standardOutput = stdoutHandle
-        process.standardError = stderrHandle
-
+        let result: ProcessRunner.Result
         do {
-            try process.run()
+            result = try ProcessRunner.run(
+                executable,
+                arguments: arguments,
+                currentDirectory: currentDirectory,
+                environment: ["DEVELOPER_DIR": BundleBuilder.developerDirectoryPath])
         } catch {
             throw BundleBuilderError(
                 description: "Failed to launch \(executable.path) \(arguments.joined(separator: " ")): \(error)"
             )
         }
-        process.waitUntilExit()
-        try? stdoutHandle.close()
-        try? stderrHandle.close()
-
-        let stdout = (try? String(contentsOf: stdoutURL, encoding: .utf8)) ?? ""
-        let stderr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? ""
-
-        guard process.terminationStatus == 0 else {
+        guard result.succeeded else {
             throw BundleBuilderError(
                 description: "\(executable.lastPathComponent) \(arguments.joined(separator: " ")) " +
-                    "failed (exit \(process.terminationStatus)) in \(currentDirectory.path):\n\(stderr)"
+                    "failed (exit \(result.exitCode)) in \(currentDirectory.path):\n\(result.standardError)"
             )
         }
-
-        return stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.standardOutput
     }
 }
