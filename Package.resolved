@@ -1,12 +1,12 @@
 {
-  "originHash" : "79e8c4fc135174b8ae9f33366e0ac2dfc38a39da7799655d41d6c8ef16fffe5c",
+  "originHash" : "1e856de6302ca4d024071f638dff403aaf68a5de91f6f0dbb39fb854b7b87835",
   "pins" : [
     {
       "identity" : "ainkradappkit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/AhmedMElhalaby/AinkradAppKit",
       "state" : {
-        "revision" : "d5d994bdd8e79d530410a1c370657fa593fa4ce6"
+        "revision" : "e4882adb97af2892b55870b55c397e9ec9453def"
       }
     },
     {
