@@ -21,7 +21,7 @@ BIN_NAME="ainkrad"
 VERSION=""
 DRY_RUN=0
 NOTARIZE=0
-FORMULA_PATH="${REPO_ROOT}/../homebrew-tap/Formula/ainkrad.rb"
+FORMULA_PATH="${REPO_ROOT}/../homebrew-ainkrad/Formula/ainkrad.rb"
 
 usage() {
   echo "usage: $(basename "$0") <version> [--dry-run] [--notarize] [--formula-path PATH]" >&2
