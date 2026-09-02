@@ -73,7 +73,16 @@ private func makeTempDirectory() -> URL {
     #expect(plist["AinkradDisplayName"] as? String == "My Widget")
     #expect(plist["AinkradIconSymbol"] as? String == "star.fill")
     #expect(plist["AinkradAPIVersion"] as? Int == AinkradAppKit.apiVersion)
-    #expect(AinkradAppKit.apiVersion == 8)
+    // A deliberate tripwire, not a duplicate of the line above: it fires when
+    // the CLI's SDK pin moves, so somebody has to notice that newly
+    // scaffolded apps will target a different generation from here on. Update
+    // it consciously.
+    //
+    // Moved 8 → 9 when the pin went to AinkradAppKit 30ccbe6 for M3's
+    // SignalWire and socket client. Generation 9 is the current SDK and
+    // minSupportedAPIVersion is 8, so a freshly scaffolded app targets 9 and
+    // still loads in any host from generation 9 onward.
+    #expect(AinkradAppKit.apiVersion == 9)
     #expect((plist["AinkradAuthor"] as? String)?.isEmpty == false)
     #expect((plist["description"] as? String)?.isEmpty == false)
     #expect(plist["NSPrincipalClass"] as? String == "MyWidgetEntryPoint")
